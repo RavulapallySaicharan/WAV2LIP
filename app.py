@@ -11,10 +11,10 @@ def runcmd(cmd, verbose = False, *args, **kwargs):
       print(std_out.strip(), std_err)
   pass
 
-def generate_audio(text):
+def generate_audio(text, audio_file):
   audio_file = time.strftime("%Y%m%d-%H%M%S")+'.wav'
   #tts.tts_to_file(text=text, speaker=tts.speakers[4], language=tts.languages[0], file_path=audio_file)
-  tts.tts_to_file(text=text, speaker_wav="/content/amit_vaid_audio.wav", language='en', file_path=audio_file)
+  tts.tts_to_file(text=text, speaker_wav=audio_file, language='en', file_path=audio_file)
   
   return('/content/'+audio_file)
 
@@ -34,27 +34,6 @@ def clean_text(text):
   # Replace multiple white spaces with a single white space
   text = re.sub(r'\s+', ' ', text)
   return text.strip()
-
-def generate_article(query):
-  startTime = time.time()
-  input_ids = tokenizer.encode(query, return_tensors='tf')
-  tf.random.set_seed(0)
-
-  sample_outputs = model.generate(
-      input_ids,
-      do_sample=True, 
-      max_length=400, 
-      top_k=50,
-      top_p=0.95, 
-      num_return_sequences=2
-  )
-  text = ''
-  for i, sample_output in enumerate(sample_outputs):
-      text += f'{tokenizer.decode(sample_output, skip_special_tokens=True)}'.replace(query,'')
-      text += '. '
-  executionTime = (time.time() - startTime)
-  return clean_text(text), executionTime
-
 
 
 
@@ -101,21 +80,18 @@ def generate_audio_route():
 @app.route('/generate_video', methods=['POST'])
 def generate_video_route():
     text = request.form['text']
-    audio_path = generate_audio(text)
-    video_path = '/content/amit_vaid_input_video.mp4'
-    output_path = generate_video(audio_path, video_path)
+    clone_audio = request.file['clone_audio']
+    clone_audio.save('clone_input_file.wav')
+    input_video = request.file['input_video']
+    input_video.save('input_video.mp4')
+    
+    audio_path = generate_audio(text, 'clone_input_file.wav')
+    #video_path = '/content/amit_vaid_input_video.mp4'
+    output_path = generate_video(audio_path, 'input_video.mp4')
     return send_file(
          output_path, 
          mimetype="video/mp4", 
          as_attachment=True)
 
-
-@app.route('/generate_article', methods=['POST'])
-def generate_article_route():
-    query = request.form['query']
-    article, timetaken = generate_article(query)
-    if article.strip() == '':
-        article = 'Unable to generate the article for the given query, Please try with another query'
-    return jsonify({"article": article, "time_taken":timetaken})
 
 app.run()
